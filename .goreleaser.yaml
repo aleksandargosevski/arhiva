@@ -1,0 +1,81 @@
+version: 2
+
+project_name: arhiva
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - main: .
+    binary: arhiva
+    ldflags:
+      - -s -w -X main.version={{.Version}}
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+
+archives:
+  - formats:
+      - tar.gz
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+
+brews:
+  - repository:
+      owner: aleksandargosevski
+      name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
+    homepage: "https://github.com/aleksandargosevski/arhiva"
+    description: "Fast Miller-columns file manager for the terminal"
+    license: "MIT"
+    dependencies:
+      - name: zoxide
+        type: optional
+    install: |
+      bin.install "arhiva"
+    test: |
+      system "#{bin}/arhiva", "--version"
+    caveats: |
+      For cd on quit, add to ~/.zshrc:
+        a() {
+          local tmp="$(mktemp -t arhiva)"
+          arhiva --cd-file="$tmp" "$@"
+          local dir="$(cat "$tmp")"
+          rm -f "$tmp"
+          [ -n "$dir" ] && [ "$dir" != "$PWD" ] && cd "$dir"
+        }
+
+checksum:
+  name_template: "checksums.txt"
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^style:"
+      - "^chore:"
+      - "^test:"
+
+release:
+  github:
+    owner: aleksandargosevski
+    name: arhiva
+  header: |
+    ## Installation
+
+    **Homebrew:**
+    ```bash
+    brew install aleksandargosevski/tap/arhiva
+    ```
+
+    **Script:**
+    ```bash
+    curl -fsSL https://raw.githubusercontent.com/aleksandargosevski/arhiva/main/install.sh | bash
+    ```
+
+    **Manual:** Download the archive for your Mac below, extract, and move `arhiva` to your PATH.
