@@ -396,3 +396,26 @@ func TestFormatMeta(t *testing.T) {
 		}
 	}
 }
+
+func TestSymlinkEntries(t *testing.T) {
+	root := t.TempDir()
+	must(t, os.Mkdir(filepath.Join(root, "dir"), 0o755))
+	must(t, os.Symlink("dir", filepath.Join(root, "ok")))
+	must(t, os.Symlink("missing", filepath.Join(root, "dead")))
+
+	col, err := loadColumn(root, listOpts{})
+	must(t, err)
+	got := map[string]entry{}
+	for _, e := range col.all {
+		got[e.name] = e
+	}
+	if e := got["ok"]; e.link != "dir" || !e.isDir || e.broken {
+		t.Errorf("ok: %+v", e)
+	}
+	if e := got["dead"]; e.link != "missing" || !e.broken {
+		t.Errorf("dead: %+v", e)
+	}
+	if e := got["dir"]; e.link != "" || e.broken {
+		t.Errorf("dir: %+v", e)
+	}
+}

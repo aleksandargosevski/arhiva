@@ -28,6 +28,7 @@ var (
 	dimStyle       = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
 	dirStyle       = lipgloss.NewStyle().Foreground(lipgloss.Color("75")).Bold(true)
 	fileStyle      = lipgloss.NewStyle().Foreground(lipgloss.Color("252"))
+	linkStyle      = lipgloss.NewStyle().Foreground(lipgloss.Color("80"))
 	headerStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("245")).Bold(true)
 	errStyle       = lipgloss.NewStyle().Foreground(lipgloss.Color("203"))
 	accentStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("214")).Bold(true)
@@ -976,8 +977,16 @@ func (m *model) columnView(c *column, w, h int, label string, isActive bool) str
 		} else if e.isDir {
 			text += "/"
 		}
+		if e.link != "" {
+			text += " (→ " + tildePath(e.link) + ")"
+		}
 		style := fileStyle
-		if e.isDir {
+		switch {
+		case e.broken:
+			style = errStyle
+		case e.link != "":
+			style = linkStyle.Bold(e.isDir)
+		case e.isDir:
 			style = dirStyle
 		}
 		if m.selected[filepath.Join(c.path, e.name)] {

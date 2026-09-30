@@ -13,9 +13,11 @@ import (
 )
 
 type entry struct {
-	name  string
-	isDir bool
-	meta  *entryMeta // shared by copies of the entry; filled lazily, see loadMeta
+	name   string
+	isDir  bool
+	link   string     // symlink target as written, "" for non-links
+	broken bool       // symlink whose target doesn't exist
+	meta   *entryMeta // shared by copies of the entry; filled lazily, see loadMeta
 }
 
 // entryMeta costs a syscall or two per entry (lstat, getxattr), about 4s for 50k files, so it is
@@ -64,8 +66,12 @@ func loadColumn(path string, opts listOpts) (*column, error) {
 		}
 		e := entry{name: name, isDir: de.IsDir(), meta: &entryMeta{}}
 		if de.Type()&fs.ModeSymlink != 0 {
-			if target, err := os.Stat(filepath.Join(path, name)); err == nil {
+			full := filepath.Join(path, name)
+			e.link, _ = os.Readlink(full)
+			if target, err := os.Stat(full); err == nil {
 				e.isDir = target.IsDir()
+			} else {
+				e.broken = true
 			}
 		}
 		entries = append(entries, e)
