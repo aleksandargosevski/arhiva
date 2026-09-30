@@ -69,6 +69,7 @@ type model struct {
 	statusIsErr   bool
 
 	finder    *finder
+	gotoPanel *gotoPanel
 	finderGen int
 	help      *help
 
@@ -199,6 +200,8 @@ func (m *model) update(msg tea.Msg) tea.Cmd {
 			return m.updatePrompt(msg)
 		case m.finder != nil:
 			return m.updateFinder(msg)
+		case m.gotoPanel != nil:
+			return m.updateGoto(msg)
 		case m.help != nil:
 			return m.updateHelp(msg)
 		default:
@@ -336,6 +339,8 @@ func (m *model) runAction(action string) tea.Cmd {
 		return m.openFinder(modeLocal, "")
 	case "zoxide":
 		return m.openFinder(modeZoxide, "")
+	case "goto":
+		return m.openGoto()
 	case "select":
 		if !m.sidebarFocus {
 			m.toggleSelect()
@@ -822,6 +827,8 @@ func (m *model) View() string {
 	switch {
 	case m.finder != nil:
 		body = m.finder.view(m.width, h)
+	case m.gotoPanel != nil:
+		body = m.gotoPanel.view(m.width, h)
 	case m.help != nil:
 		body = m.help.view(m.width, h)
 	default:

@@ -4,8 +4,10 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/textinput"
@@ -246,4 +248,146 @@ func zoxideList() ([]string, error) {
 		}
 	}
 	return items, nil
+}
+
+// ---- go to path ----
+
+// gotoPanel is a path input with shell-like completion: the list shows subfolders of the typed
+// folder that start with the typed name, tab completes to the highlighted one.
+type gotoPanel struct {
+	input      textinput.Model
+	base       string // relative paths resolve from here
+	showHidden bool
+	dirs       []string
+	cursor     int
+	picked     bool // cursor moved with arrows, so enter prefers the list over the typed path
+	err        error
+}
+
+func (m *model) openGoto() tea.Cmd {
+	input := textinput.New()
+	input.Prompt = "❯ "
+	input.Placeholder = "path…"
+	input.Focus()
+	m.gotoPanel = &gotoPanel{input: input, base: m.active().path, showHidden: m.showHidden}
+	m.gotoPanel.refresh()
+	return textinput.Blink
+}
+
+func (m *model) updateGoto(msg tea.KeyMsg) tea.Cmd {
+	g := m.gotoPanel
+	switch msg.String() {
+	case "esc":
+		m.gotoPanel = nil
+	case "up", "ctrl+p", "ctrl+k":
+		g.cursor, g.picked = clamp(g.cursor-1, 0, len(g.dirs)-1), true
+	case "down", "ctrl+n", "ctrl+j":
+		g.cursor, g.picked = clamp(g.cursor+1, 0, len(g.dirs)-1), true
+	case "tab":
+		if len(g.dirs) > 0 {
+			prefix, _ := g.split()
+			g.input.SetValue(prefix + g.dirs[g.cursor] + "/")
+			g.input.CursorEnd()
+			g.refresh()
+		}
+	case "enter":
+		if path, ok := g.target(); ok {
+			m.gotoPanel = nil
+			return m.jumpToPath(path)
+		}
+		g.err = fmt.Errorf("no such file or folder: %s", strings.TrimSpace(g.input.Value()))
+	default:
+		before := g.input.Value()
+		var cmd tea.Cmd
+		g.input, cmd = g.input.Update(msg)
+		if g.input.Value() != before {
+			g.refresh()
+		}
+		return cmd
+	}
+	return nil
+}
+
+// target is where enter goes: the highlighted folder if picked with arrows, else the typed path
+// if it exists, else the highlighted folder (so "~/Si" goes to ~/Sites).
+func (g *gotoPanel) target() (string, bool) {
+	prefix, _ := g.split()
+	highlighted := func() (string, bool) {
+		if len(g.dirs) == 0 {
+			return "", false
+		}
+		return filepath.Join(g.abs(prefix), g.dirs[g.cursor]), true
+	}
+	if g.picked {
+		return highlighted()
+	}
+	typed := g.abs(strings.TrimSpace(g.input.Value()))
+	if _, err := os.Stat(typed); err == nil {
+		return typed, true
+	}
+	return highlighted()
+}
+
+// ponytail: ReadDir runs on every keystroke; make it async if slow network volumes lag the input.
+func (g *gotoPanel) refresh() {
+	g.dirs, g.cursor, g.picked, g.err = nil, 0, false, nil
+	prefix, partial := g.split()
+	entries, err := os.ReadDir(g.abs(prefix))
+	if err != nil {
+		g.err = err
+		return
+	}
+	lowerPartial := strings.ToLower(partial)
+	for _, de := range entries {
+		name := de.Name()
+		if strings.HasPrefix(name, ".") && !g.showHidden && !strings.HasPrefix(partial, ".") {
+			continue
+		}
+		if !strings.HasPrefix(strings.ToLower(name), lowerPartial) || !isDirEntry(g.abs(prefix), de) {
+			continue
+		}
+		g.dirs = append(g.dirs, name)
+	}
+	slices.SortFunc(g.dirs, func(a, b string) int { return strings.Compare(strings.ToLower(a), strings.ToLower(b)) })
+}
+
+// split cuts the typed value into the folder part (ending in "/") and the name being typed.
+func (g *gotoPanel) split() (prefix, partial string) {
+	v := strings.TrimSpace(g.input.Value())
+	if v == "~" {
+		return "~/", ""
+	}
+	i := strings.LastIndex(v, "/")
+	return v[:i+1], v[i+1:]
+}
+
+func (g *gotoPanel) abs(p string) string {
+	p = expandHome(p)
+	if !filepath.IsAbs(p) {
+		p = filepath.Join(g.base, p)
+	}
+	return p
+}
+
+func (g *gotoPanel) view(w, h int) string {
+	title := accentStyle.Render(" Go to ") + dimStyle.Render("  tab complete · enter go · esc close")
+	items := make([]string, len(g.dirs))
+	for i, d := range g.dirs {
+		items[i] = d + "/"
+	}
+	status := ""
+	if g.err != nil {
+		status = g.err.Error()
+	}
+	prefix, _ := g.split()
+	footer := fmt.Sprintf("%d  %s", len(g.dirs), tildePath(g.abs(prefix)))
+	return overlayView(title, &g.input, items, g.cursor, status, g.err != nil, footer, w, h)
+}
+
+func isDirEntry(dir string, de fs.DirEntry) bool {
+	if de.Type()&fs.ModeSymlink == 0 {
+		return de.IsDir()
+	}
+	info, err := os.Stat(filepath.Join(dir, de.Name()))
+	return err == nil && info.IsDir()
 }

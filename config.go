@@ -75,6 +75,7 @@ var actions = []action{
 	{"sort_reverse", "Reverse sort order", []string{",r"}},
 	{"find", "Fuzzy find in current folder", []string{"f"}},
 	{"zoxide", "Fuzzy find with zoxide", []string{"z"}},
+	{"goto", "Go to path (tab completes)", []string{"gp"}},
 	{"select", "Select / unselect (confirm in visual)", []string{"space"}},
 	{"visual", "Visual mode: select a range", []string{"v"}},
 	{"invert_selection", "Invert selection in current folder", []string{"ctrl+r"}},

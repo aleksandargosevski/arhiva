@@ -419,3 +419,48 @@ func TestSymlinkEntries(t *testing.T) {
 		t.Errorf("dir: %+v", e)
 	}
 }
+
+func TestGoto(t *testing.T) {
+	root := t.TempDir()
+	must(t, os.MkdirAll(filepath.Join(root, "project", "src"), 0o755))
+	must(t, os.MkdirAll(filepath.Join(root, "Pictures"), 0o755))
+	must(t, os.WriteFile(filepath.Join(root, "project", "src", "main.go"), nil, 0o644))
+
+	m, err := newModel(Config{}, root)
+	must(t, err)
+	m.hasZoxide = false
+	typeText := func(s string) {
+		for _, r := range s {
+			m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{r}})
+		}
+	}
+
+	m.openGoto()
+	if got := strings.Join(m.gotoPanel.dirs, ","); got != "Pictures,project" {
+		t.Fatalf("empty input lists subfolders: got %s", got)
+	}
+	typeText("pr")
+	m.Update(tea.KeyMsg{Type: tea.KeyTab})
+	if v := m.gotoPanel.input.Value(); v != "project/" {
+		t.Fatalf("tab completes: got %q", v)
+	}
+	typeText("s") // not a full name: enter goes to the highlighted match
+	m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	if m.gotoPanel != nil || m.active().path != filepath.Join(root, "project", "src") {
+		t.Fatalf("enter should jump to project/src, at %s", m.active().path)
+	}
+
+	m.openGoto()
+	typeText(filepath.Join(root, "project", "src", "main.go")) // absolute path to a file
+	m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	if e, _ := m.active().selected(); m.active().path != filepath.Join(root, "project", "src") || e.name != "main.go" {
+		t.Fatalf("file path opens its folder with cursor on it, at %s on %s", m.active().path, e.name)
+	}
+
+	m.openGoto()
+	typeText("nope")
+	m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	if m.gotoPanel == nil || m.gotoPanel.err == nil {
+		t.Fatal("missing path keeps the panel open with an error")
+	}
+}

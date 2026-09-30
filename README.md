@@ -160,13 +160,14 @@ interactive = true
 
 Custom command keys override built-in ones.
 
-Actions: `up down left right top bottom page_up page_down jump_back jump_forward set_root new_tab close_tab next_tab prev_tab toggle_sidebar focus toggle_hidden filter sort_name sort_modified sort_size sort_ext sort_reverse find zoxide select visual invert_selection new copy cut paste zip rename rename_append rename_replace preview_down preview_up quick_look dir_size tags duplicate copy_contents airdrop symlink diff command undo yank trash delete bookmark help quit quit_no_cd`.
+Actions: `up down left right top bottom page_up page_down jump_back jump_forward set_root new_tab close_tab next_tab prev_tab toggle_sidebar focus toggle_hidden filter sort_name sort_modified sort_size sort_ext sort_reverse find zoxide goto select visual invert_selection new copy cut paste zip rename rename_append rename_replace preview_down preview_up quick_look dir_size tags duplicate copy_contents airdrop symlink diff command undo yank trash delete bookmark help quit quit_no_cd`.
 
 ## Navigation
 
 | key | action |
 |-----|--------|
 | `/` | filter the current folder while typing (smart case); enter keeps it, `esc` clears |
+| `gp` | go to a typed or pasted path; lists subfolders as you type, `tab` completes |
 | `,n` `,m` `,s` `,e` | sort by name / modified / size / extension; `,r` reverses |
 | `ctrl+o` or `[` / `]` | jump back / forward (bookmark, finder and zoxide jumps restore all columns) |
 | `t` / `ctrl+w` | new tab / close tab; `gt` / `gT` next / previous, `1`-`9` go to tab |
