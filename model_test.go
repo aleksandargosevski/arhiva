@@ -464,3 +464,14 @@ func TestGoto(t *testing.T) {
 		t.Fatal("missing path keeps the panel open with an error")
 	}
 }
+
+func TestRightDoesNotOpenFiles(t *testing.T) {
+	root := t.TempDir()
+	must(t, os.WriteFile(filepath.Join(root, "file.txt"), nil, 0o644))
+	m, err := newModel(Config{}, root)
+	must(t, err)
+	m.hasZoxide = false
+	if cmd := m.handleKey("l"); cmd != nil || len(m.cols) != 1 {
+		t.Fatal("l on a file should do nothing")
+	}
+}

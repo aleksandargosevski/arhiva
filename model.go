@@ -292,10 +292,13 @@ func (m *model) runAction(action string) tea.Cmd {
 		if !m.sidebarFocus {
 			return m.goLeft()
 		}
-	case "right":
+	case "right", "open":
 		if m.sidebarFocus {
 			m.recordJump()
 			return m.resetTo(m.bookmarks[m.sidebarCursor].Path, "")
+		}
+		if e, ok := m.active().selected(); ok && !e.isDir && action == "right" {
+			return nil // only "open" opens files, so an extra l doesn't launch an app
 		}
 		return m.goRight()
 	case "new_tab":

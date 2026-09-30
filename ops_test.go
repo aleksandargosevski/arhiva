@@ -319,7 +319,7 @@ func TestDuplicateAndPicker(t *testing.T) {
 	out := filepath.Join(t.TempDir(), "chosen")
 	m.chooseFile = out
 	m.active().selectName("a.txt")
-	if cmd := m.handleKey("l"); cmd == nil {
+	if cmd := m.handleKey("enter"); cmd == nil {
 		t.Fatal("choosing should quit")
 	}
 	data, _ := os.ReadFile(out)
