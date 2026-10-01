@@ -328,6 +328,23 @@ func TestDuplicateAndPicker(t *testing.T) {
 	}
 }
 
+func TestDefaultDir(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	cfg, err := loadConfig()
+	must(t, err)
+	if cfg.DefaultDir != "." {
+		t.Fatalf("default_dir without config: %q, want \".\"", cfg.DefaultDir)
+	}
+
+	must(t, os.MkdirAll(filepath.Dir(configPath()), 0o755))
+	must(t, os.WriteFile(configPath(), []byte("default_dir = \"~\"\n"), 0o644))
+	cfg, err = loadConfig()
+	must(t, err)
+	if cfg.DefaultDir != homeDir() {
+		t.Fatalf("default_dir = \"~\": %q, want %q", cfg.DefaultDir, homeDir())
+	}
+}
+
 func TestConfigReload(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 	root := t.TempDir()

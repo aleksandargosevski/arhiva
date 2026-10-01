@@ -57,7 +57,7 @@ Moving to Trash uses the built-in `trash` command of macOS 15+.
 ## Usage
 
 ```sh
-arhiva                   # opens default_dir from the config
+arhiva                   # opens default_dir from the config (current folder by default)
 arhiva ~/Downloads       # a folder
 arhiva notes/todo.md     # a file: opens its folder with the cursor on it
 arhiva --version
@@ -134,7 +134,7 @@ Inside nvim's terminal images fall back to half-blocks, since it doesn't pass gr
 Changes apply as soon as the file is saved, no restart needed.
 
 ```toml
-default_dir    = "~"
+default_dir    = "."      # "." = folder arhiva was started from; "~" or any path for a fixed start
 show_sidebar   = true
 show_hidden    = false
 icons          = true     # needs a Nerd Font

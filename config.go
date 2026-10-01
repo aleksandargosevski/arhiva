@@ -133,7 +133,7 @@ func (k *keyList) UnmarshalTOML(v any) error {
 
 func defaultConfig() Config {
 	return Config{
-		DefaultDir:    "~",
+		DefaultDir:    ".",
 		ShowSidebar:   true,
 		Icons:         true,
 		ImageProtocol: "auto",
