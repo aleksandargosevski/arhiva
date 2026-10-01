@@ -422,7 +422,7 @@ func (m *model) runAction(action string) tea.Cmd {
 		m.yank()
 	case "bookmark":
 		if !m.sidebarFocus {
-			m.addBookmark()
+			m.toggleBookmark()
 		}
 	case "trash":
 		if m.sidebarFocus {
@@ -715,18 +715,17 @@ func (m *model) yank() {
 	m.status, m.statusIsErr = "Copied "+label, false
 }
 
-// addBookmark bookmarks the folder under the cursor, or the current folder when the cursor is on a file.
-func (m *model) addBookmark() {
+// toggleBookmark bookmarks the folder under the cursor (or the current folder when the cursor is on
+// a file), or removes the bookmark if it already exists.
+func (m *model) toggleBookmark() {
 	col := m.active()
 	path := col.path
 	if e, ok := col.selected(); ok && e.isDir {
 		path = filepath.Join(col.path, e.name)
 	}
-	for _, b := range m.bookmarks {
-		if b.Path == path {
-			m.setErr(fmt.Errorf("%s is already bookmarked (%s)", tildePath(path), b.Key))
-			return
-		}
+	if i := slices.IndexFunc(m.bookmarks, func(b Bookmark) bool { return b.Path == path }); i >= 0 {
+		m.removeBookmark(i)
+		return
 	}
 	if m.setBookmarks(append(slices.Clone(m.cfg.Bookmarks), path)) {
 		b := m.bookmarks[len(m.bookmarks)-1]
@@ -741,7 +740,7 @@ func (m *model) removeBookmark(i int) {
 	name := m.bookmarks[i].Name
 	if m.setBookmarks(slices.Delete(slices.Clone(m.cfg.Bookmarks), i, i+1)) {
 		m.sidebarCursor = clamp(m.sidebarCursor, 0, len(m.bookmarks)-1)
-		m.sidebarFocus = len(m.bookmarks) > 0
+		m.sidebarFocus = m.sidebarFocus && len(m.bookmarks) > 0
 		m.status, m.statusIsErr = "Removed bookmark "+name, false
 	}
 }

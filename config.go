@@ -104,7 +104,7 @@ var actions = []action{
 	{"command", "Run a shell command ($f, $d, \"$@\")", []string{":"}},
 	{"undo", "Undo last rename / move / paste / create", []string{"u"}},
 	{"yank", "Copy path(s)", []string{"Y"}},
-	{"bookmark", "Bookmark folder under cursor", []string{"m"}},
+	{"bookmark", "Bookmark / unbookmark folder under cursor", []string{"m"}},
 	{"help", "Show keybindings", []string{"?"}},
 	{"quit", "Quit and cd to folder", []string{"q"}},
 	{"quit_no_cd", "Quit without cd", []string{"Q"}},

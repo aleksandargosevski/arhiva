@@ -119,6 +119,12 @@ func TestBookmarks(t *testing.T) {
 	if len(cfg.Bookmarks) != 1 || filepath.Base(cfg.Bookmarks[0]) != "Dotfiles" {
 		t.Fatalf("remove failed: %v", cfg.Bookmarks)
 	}
+
+	m.sidebarFocus = false
+	m.handleKey("m") // still on Dotfiles: toggles the bookmark off
+	if len(m.bookmarks) != 0 || m.sidebarFocus {
+		t.Fatalf("m should remove an existing bookmark and keep focus in columns: %v", m.bookmarks)
+	}
 }
 
 func TestFitImage(t *testing.T) {

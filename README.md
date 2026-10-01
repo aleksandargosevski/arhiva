@@ -144,7 +144,7 @@ sort           = "name"   # name | modified | size | ext
 git            = false    # git status marks next to entries
 
 # Keys are assigned automatically: "g" + first free letter of the folder name (Sites -> gs).
-# `m` adds the folder under the cursor, `d` in the focused sidebar removes one;
+# `m` adds or removes the folder under the cursor, `d` in the focused sidebar removes one;
 # both rewrite only this line and keep the rest of the file.
 bookmarks = ["~", "~/Desktop", "~/Downloads"]
 
