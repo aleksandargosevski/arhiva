@@ -70,6 +70,7 @@ type model struct {
 
 	finder    *finder
 	gotoPanel *gotoPanel
+	grep      *grepPanel
 	finderGen int
 	help      *help
 
@@ -185,9 +186,13 @@ func (m *model) update(msg tea.Msg) tea.Cmd {
 		}
 	case errMsg:
 		m.setErr(msg.err)
+	case grepRunMsg, grepResultsMsg:
+		if m.grep != nil {
+			return m.grep.receive(msg)
+		}
 	case finderItemsMsg:
 		if m.finder != nil && m.finder.gen == msg.gen {
-			m.finder.setItems(msg.items, msg.err)
+			m.finder.setItems(msg.items, msg.source, msg.err)
 		}
 	case tea.KeyMsg:
 		if msg.String() == "ctrl+c" {
@@ -202,6 +207,8 @@ func (m *model) update(msg tea.Msg) tea.Cmd {
 			return m.updateFinder(msg)
 		case m.gotoPanel != nil:
 			return m.updateGoto(msg)
+		case m.grep != nil:
+			return m.updateGrep(msg)
 		case m.help != nil:
 			return m.updateHelp(msg)
 		default:
@@ -344,6 +351,8 @@ func (m *model) runAction(action string) tea.Cmd {
 		return m.openFinder(modeZoxide, "")
 	case "goto":
 		return m.openGoto()
+	case "grep":
+		return m.openGrep()
 	case "select":
 		if !m.sidebarFocus {
 			m.toggleSelect()
@@ -832,6 +841,8 @@ func (m *model) View() string {
 		body = m.finder.view(m.width, h)
 	case m.gotoPanel != nil:
 		body = m.gotoPanel.view(m.width, h)
+	case m.grep != nil:
+		body = m.grep.view(m.cfg.SyntaxTheme, m.width, h)
 	case m.help != nil:
 		body = m.help.view(m.width, h)
 	default:

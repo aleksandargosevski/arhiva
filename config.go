@@ -75,6 +75,7 @@ var actions = []action{
 	{"sort_ext", "Sort by extension", []string{",e"}},
 	{"sort_reverse", "Reverse sort order", []string{",r"}},
 	{"find", "Fuzzy find in current folder", []string{"f"}},
+	{"grep", "Search file contents (ripgrep)", []string{"F"}},
 	{"zoxide", "Fuzzy find with zoxide", []string{"z"}},
 	{"goto", "Go to path (tab completes)", []string{"gp"}},
 	{"select", "Select / unselect (confirm in visual)", []string{"space"}},

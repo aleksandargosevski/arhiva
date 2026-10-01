@@ -7,7 +7,7 @@ A fast Miller-columns file manager for the macOS terminal: Finder-like columns t
 - Single binary, macOS (Apple Silicon and Intel)
 - Columns share the width equally; a preview column shows folders, syntax-highlighted text, images (kitty graphics in Ghostty/kitty, also through tmux), archive contents and media metadata
 - Sidebar with bookmarks, each with an automatic `g`+letter jump key
-- Fuzzy finder over the current folder or zoxide
+- Fuzzy finder over the current folder or zoxide, content search with ripgrep
 - Selection (space, vim-like visual mode), copy/cut/paste with progress, trash, rename and bulk rename in `$EDITOR`, zip/extract, undo
 - Filter, sort, tabs, jump history, Finder tags, Quick Look
 - Custom shell commands, picker mode for nvim, config that reloads on save
@@ -40,7 +40,19 @@ cd arhiva
 make install
 ```
 
-Optional: [zoxide](https://github.com/ajeetdsouza/zoxide) for the zoxide finder, a [Nerd Font](https://www.nerdfonts.com) for icons.
+### Recommended
+
+```sh
+brew install fd ripgrep zoxide
+```
+
+- [fd](https://github.com/sharkdp/fd): much faster file finder (`f`) that respects `.gitignore`; without it a built-in walk is used
+- [ripgrep](https://github.com/BurntSushi/ripgrep): content search (`F`), required for it
+- [zoxide](https://github.com/ajeetdsouza/zoxide): the zoxide finder (`z`); every folder you enter is added to it
+- a [Nerd Font](https://www.nerdfonts.com) for icons (`icons = true`)
+- `git` for status marks in columns (comes with Xcode Command Line Tools)
+
+Moving to Trash uses the built-in `trash` command of macOS 15+.
 
 ## Usage
 
@@ -160,7 +172,7 @@ interactive = true
 
 Custom command keys override built-in ones.
 
-Actions: `up down left right top bottom open page_up page_down jump_back jump_forward set_root new_tab close_tab next_tab prev_tab toggle_sidebar focus toggle_hidden filter sort_name sort_modified sort_size sort_ext sort_reverse find zoxide goto select visual invert_selection new copy cut paste zip rename rename_append rename_replace preview_down preview_up quick_look dir_size tags duplicate copy_contents airdrop symlink diff command undo yank trash delete bookmark help quit quit_no_cd`.
+Actions: `up down left right top bottom open page_up page_down jump_back jump_forward set_root new_tab close_tab next_tab prev_tab toggle_sidebar focus toggle_hidden filter sort_name sort_modified sort_size sort_ext sort_reverse find grep zoxide goto select visual invert_selection new copy cut paste zip rename rename_append rename_replace preview_down preview_up quick_look dir_size tags duplicate copy_contents airdrop symlink diff command undo yank trash delete bookmark help quit quit_no_cd`.
 
 ## Navigation
 
@@ -168,6 +180,7 @@ Actions: `up down left right top bottom open page_up page_down jump_back jump_fo
 |-----|--------|
 | `/` | filter the current folder while typing (smart case); enter keeps it, `esc` clears |
 | `l` / `enter` | `l` only enters folders; `enter` also opens files |
+| `F` | search file contents with ripgrep, preview of the hit on the right; `enter` jumps to the file |
 | `gp` | go to a typed or pasted path; lists subfolders as you type, `tab` completes |
 | `,n` `,m` `,s` `,e` | sort by name / modified / size / extension; `,r` reverses |
 | `ctrl+o` or `[` / `]` | jump back / forward (bookmark, finder and zoxide jumps restore all columns) |

@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/textinput"
@@ -34,12 +35,14 @@ type finder struct {
 	cursor  int
 	loading bool
 	err     error
+	source  string // what listed the items: "fd" or "built-in", shown in the footer
 }
 
 type finderItemsMsg struct {
-	gen   int
-	items []string
-	err   error
+	gen    int
+	items  []string
+	source string
+	err    error
 }
 
 func (m *model) openFinder(mode int, query string) tea.Cmd {
@@ -82,8 +85,8 @@ func (m *model) updateFinder(msg tea.KeyMsg) tea.Cmd {
 	return nil
 }
 
-func (f *finder) setItems(items []string, err error) {
-	f.items, f.err, f.loading = items, err, false
+func (f *finder) setItems(items []string, source string, err error) {
+	f.items, f.source, f.err, f.loading = items, source, err, false
 	f.filter()
 }
 
@@ -134,6 +137,9 @@ func (f *finder) view(w, h int) string {
 	footer := fmt.Sprintf("%d/%d", len(f.matches), len(f.items))
 	if f.mode == modeLocal {
 		footer += "  " + tildePath(f.root)
+		if f.source != "" {
+			footer += "  · " + f.source
+		}
 	}
 	return overlayView(title, &f.input, items, f.cursor, status, f.err != nil, footer, w, h)
 }
@@ -180,15 +186,42 @@ func overlayView(title string, input *textinput.Model, items []string, cursor in
 
 func loadFinderItems(mode int, root string, showHidden bool, gen int) tea.Cmd {
 	return func() tea.Msg {
-		var items []string
-		var err error
 		if mode == modeZoxide {
-			items, err = zoxideList()
-		} else {
-			items, err = walkDir(root, showHidden)
+			items, err := zoxideList()
+			return finderItemsMsg{gen: gen, items: items, err: err}
 		}
-		return finderItemsMsg{gen: gen, items: items, err: err}
+		items, source, err := fdList(root, showHidden)
+		return finderItemsMsg{gen: gen, items: items, source: source, err: err}
 	}
+}
+
+// fdList is walkDir via fd when installed: parallel, so much faster on big trees, and it respects
+// .gitignore. Falls back to walkDir if fd is missing or fails without output.
+func fdList(root string, showHidden bool) (items []string, source string, err error) {
+	builtIn := func() ([]string, string, error) {
+		items, err := walkDir(root, showHidden)
+		return items, "built-in", err
+	}
+	if _, err := exec.LookPath("fd"); err != nil {
+		return builtIn()
+	}
+	args := []string{"--type", "f", "--type", "d", "--strip-cwd-prefix", "--color", "never",
+		"--exclude", ".git", "--exclude", "node_modules", "--max-results", strconv.Itoa(maxFinderItems)}
+	if showHidden {
+		args = append(args, "--hidden")
+	}
+	cmd := exec.Command("fd", args...)
+	cmd.Dir = root
+	out, err := cmd.Output() // fd exits non-zero on unreadable subfolders but still lists the rest
+	if err != nil && len(out) == 0 {
+		return builtIn()
+	}
+	items = strings.Split(strings.TrimSuffix(string(out), "\n"), "\n")
+	if len(items) == 1 && items[0] == "" {
+		return nil, "fd", nil
+	}
+	slices.Sort(items) // fd's order varies between runs; keep the list stable like walkDir's
+	return items, "fd", nil
 }
 
 var errEnoughItems = errors.New("enough items")

@@ -475,3 +475,45 @@ func TestRightDoesNotOpenFiles(t *testing.T) {
 		t.Fatal("l on a file should do nothing")
 	}
 }
+
+func TestFdListMatchesWalkDir(t *testing.T) {
+	if _, err := exec.LookPath("fd"); err != nil {
+		t.Skip("fd not installed")
+	}
+	root := t.TempDir()
+	must(t, os.MkdirAll(filepath.Join(root, "sub", "deep"), 0o755))
+	must(t, os.MkdirAll(filepath.Join(root, ".hidden"), 0o755))
+	must(t, os.WriteFile(filepath.Join(root, "sub", "a.txt"), nil, 0o644))
+	for _, hidden := range []bool{false, true} {
+		fdItems, source, err := fdList(root, hidden)
+		must(t, err)
+		walked, err := walkDir(root, hidden)
+		must(t, err)
+		if source != "fd" {
+			t.Errorf("source = %q, want fd", source)
+		}
+		if strings.Join(fdItems, ",") != strings.Join(walked, ",") {
+			t.Errorf("hidden=%v: fd %v, walk %v", hidden, fdItems, walked)
+		}
+	}
+}
+
+func TestRipgrep(t *testing.T) {
+	if hit, ok := parseGrepLine("dir/a:b.go\x0012:  foo: bar"); !ok || hit.file != "dir/a:b.go" || hit.line != 12 || hit.text != "  foo: bar" {
+		t.Fatalf("parse: %+v %v", hit, ok)
+	}
+	if _, err := exec.LookPath("rg"); err != nil {
+		t.Skip("rg not installed")
+	}
+	root := t.TempDir()
+	must(t, os.MkdirAll(filepath.Join(root, "sub"), 0o755))
+	must(t, os.WriteFile(filepath.Join(root, "sub", "a.go"), []byte("package a\nfunc Needle() {}\n"), 0o644))
+	hits, truncated, err := ripgrep(root, "needle", false) // smart case: lowercase matches Needle
+	must(t, err)
+	if truncated || len(hits) != 1 || hits[0].file != filepath.Join("sub", "a.go") || hits[0].line != 2 {
+		t.Fatalf("hits: %+v", hits)
+	}
+	if hits, _, err := ripgrep(root, "absent", false); err != nil || len(hits) != 0 {
+		t.Fatalf("no matches should be empty, not an error: %v %v", hits, err)
+	}
+}
