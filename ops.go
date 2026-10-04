@@ -12,6 +12,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -830,15 +831,32 @@ func bulkRename(paths, names []string) (*undoStep, error) {
 
 // ---- quick look / size ----
 
-// quickLookPanel opens the macOS Quick Look panel; it runs until the panel is closed.
+// quickLookPanel opens the macOS Quick Look panel in front of the terminal; it runs until the panel is closed.
 func quickLookPanel(paths []string) tea.Cmd {
 	return func() tea.Msg {
-		if err := exec.Command("qlmanage", append([]string{"-p"}, paths...)...).Run(); err != nil {
+		cmd := exec.Command("qlmanage", append([]string{"-p"}, paths...)...)
+		if err := cmd.Start(); err != nil {
+			return errMsg{fmt.Errorf("quick look: %w", err)}
+		}
+		// qlmanage launched from a terminal opens behind it, so bring it to the front once it has launched.
+		go exec.Command("osascript", "-l", "JavaScript", "-e", activatePIDScript, strconv.Itoa(cmd.Process.Pid)).Run()
+		if err := cmd.Wait(); err != nil {
 			return errMsg{fmt.Errorf("quick look: %w", err)}
 		}
 		return nil
 	}
 }
+
+const activatePIDScript = `function run(argv) {
+  ObjC.import("AppKit");
+  const pid = parseInt(argv[0]);
+  for (let i = 0; i < 20; i++) {
+    const app = $.NSRunningApplication.runningApplicationWithProcessIdentifier(pid);
+    if (app.isNil()) return;
+    if (app.finishedLaunching && app.activateWithOptions($.NSApplicationActivateIgnoringOtherApps)) return;
+    delay(0.1);
+  }
+}`
 
 type dirSizeMsg struct {
 	sizes  map[string]int64
