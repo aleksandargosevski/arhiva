@@ -183,7 +183,8 @@ func pasteAll(clip clipboard, dir string, j *job) opDoneMsg {
 // job is a running background operation whose progress is shown in the status line.
 type job struct {
 	label       string
-	total, done atomic.Int64 // bytes
+	total, done atomic.Int64 // bytes, or files when items is set
+	items       bool
 }
 
 // copyWithProgress runs `cp -Rp` (keeps attributes, uses APFS clones) and measures progress
@@ -1003,6 +1004,29 @@ func (m *model) copyContents() tea.Cmd {
 	}
 }
 
+// ---- finder ----
+
+// revealInFinder selects the entry under the cursor (or the focused bookmark) in a Finder window;
+// in an empty folder it opens the folder itself.
+func (m *model) revealInFinder() tea.Cmd {
+	col := m.active()
+	args, label := []string{col.path}, tildePath(col.path)
+	switch e, ok := col.selected(); {
+	case m.sidebarFocus:
+		b := m.bookmarks[m.sidebarCursor]
+		args, label = []string{"-R", b.Path}, b.Name
+	case ok:
+		args, label = []string{"-R", filepath.Join(col.path, e.name)}, e.name
+	}
+	m.status, m.statusIsErr = "Revealed "+label+" in Finder", false
+	return func() tea.Msg {
+		if err := runCmd("open", args...); err != nil {
+			return errMsg{err}
+		}
+		return nil
+	}
+}
+
 // ---- airdrop ----
 
 // airDropScript opens the system AirDrop panel for the given files and waits until it is closed,
@@ -1043,14 +1067,9 @@ func (m *model) airDrop() tea.Cmd {
 	m.clearSelection()
 	m.status, m.statusIsErr = "AirDrop: pick a device in the panel…", false
 	return func() tea.Msg {
-		out, err := exec.Command("osascript", append([]string{"-l", "JavaScript", "-e", airDropScript}, paths...)...).CombinedOutput()
-		result := strings.TrimSpace(string(out))
+		result, err := runJXA(airDropScript, paths...)
 		if err != nil {
-			// osascript prints "execution error: Error: <message> (-2700)"
-			if _, msg, ok := strings.Cut(result, "Error: "); ok {
-				result = strings.TrimSuffix(strings.TrimSpace(msg), " (-2700)")
-			}
-			return errMsg{fmt.Errorf("airdrop: %s", cmp.Or(result, err.Error()))}
+			return errMsg{fmt.Errorf("airdrop: %w", err)}
 		}
 		if result == "cancelled" {
 			return opDoneMsg{status: "AirDrop cancelled"}

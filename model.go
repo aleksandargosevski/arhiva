@@ -62,6 +62,8 @@ type model struct {
 	undoStack []*undoStep
 	prompt    *prompt
 	confirm   *confirm
+	choice    *choice
+	lastPick  map[string]string // last option picked per choice dialog, preselected next time
 
 	width, height int
 	pending       string
@@ -102,6 +104,7 @@ func newModel(cfg Config, startDir string) (*model, error) {
 		git:         newGitState(cfg.Git),
 		selected:    map[string]bool{},
 		dirSizes:    map[string]int64{},
+		lastPick:    map[string]string{},
 		cfgModTime:  configModTime(),
 	}
 	_, err := exec.LookPath("zoxide")
@@ -203,6 +206,8 @@ func (m *model) update(msg tea.Msg) tea.Cmd {
 			return m.updateConfirm(msg)
 		case m.prompt != nil:
 			return m.updatePrompt(msg)
+		case m.choice != nil:
+			return m.updateChoice(msg)
 		case m.finder != nil:
 			return m.updateFinder(msg)
 		case m.gotoPanel != nil:
@@ -372,6 +377,10 @@ func (m *model) runAction(action string) tea.Cmd {
 		if !m.sidebarFocus {
 			return m.fileAction(action)
 		}
+	case "convert", "resize", "optimize", "rotate_flip", "remove_background", "trim":
+		if !m.sidebarFocus {
+			return m.mediaAction(action)
+		}
 	case "undo":
 		return m.undo()
 	case "tags":
@@ -390,6 +399,8 @@ func (m *model) runAction(action string) tea.Cmd {
 		if !m.sidebarFocus {
 			return m.airDrop()
 		}
+	case "reveal":
+		return m.revealInFinder()
 	case "symlink":
 		if !m.sidebarFocus {
 			m.symlink()
@@ -1136,7 +1147,9 @@ func (m *model) jobView() string {
 	}
 	j := m.jobs[0]
 	text := j.label
-	if total := j.total.Load(); total > 0 {
+	if j.items {
+		text += fmt.Sprintf(" %d/%d", j.done.Load(), j.total.Load())
+	} else if total := j.total.Load(); total > 0 {
 		done := min(j.done.Load(), total)
 		const barW = 10
 		filled := int(done * barW / total)

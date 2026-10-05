@@ -9,6 +9,7 @@ A fast Miller-columns file manager for the macOS terminal: Finder-like columns t
 - Sidebar with bookmarks, each with an automatic `g`+letter jump key
 - Fuzzy finder over the current folder or zoxide, content search with ripgrep
 - Selection (space, vim-like visual mode), copy/cut/paste with progress, trash, rename and bulk rename in `$EDITOR`, zip/extract, undo
+- Image convert, resize, optimize, rotate/flip and background removal; video/audio trim
 - Filter, sort, tabs, jump history, Finder tags, Quick Look
 - Custom shell commands, picker mode for nvim, config that reloads on save
 
@@ -43,12 +44,14 @@ make install
 ### Recommended
 
 ```sh
-brew install fd ripgrep zoxide
+brew install fd ripgrep zoxide pngquant ffmpeg
 ```
 
 - [fd](https://github.com/sharkdp/fd): much faster file finder (`f`) that respects `.gitignore`; without it a built-in walk is used
 - [ripgrep](https://github.com/BurntSushi/ripgrep): content search (`F`), required for it
 - [zoxide](https://github.com/ajeetdsouza/zoxide): the zoxide finder (`z`); every folder you enter is added to it
+- [pngquant](https://pngquant.org): PNG optimize (`eo`), required for PNGs ([oxipng](https://github.com/shssoichiro/oxipng) works too, lossless with smaller savings)
+- [ffmpeg](https://ffmpeg.org): video/audio trim (`et`), required for it
 - a [Nerd Font](https://www.nerdfonts.com) for icons (`icons = true`)
 - `git` for status marks in columns (comes with Xcode Command Line Tools)
 
@@ -172,7 +175,7 @@ interactive = true
 
 Custom command keys override built-in ones.
 
-Actions: `up down left right top bottom open page_up page_down jump_back jump_forward set_root new_tab close_tab next_tab prev_tab toggle_sidebar focus toggle_hidden filter sort_name sort_modified sort_size sort_ext sort_reverse find grep zoxide goto select visual invert_selection new copy cut paste zip rename rename_append rename_replace preview_down preview_up quick_look dir_size tags duplicate copy_contents airdrop symlink diff command undo yank trash delete bookmark help quit quit_no_cd`.
+Actions: `up down left right top bottom open page_up page_down jump_back jump_forward set_root new_tab close_tab next_tab prev_tab toggle_sidebar focus toggle_hidden filter sort_name sort_modified sort_size sort_ext sort_reverse find grep zoxide goto select visual invert_selection new copy cut paste zip rename rename_append rename_replace convert resize optimize rotate_flip remove_background trim preview_down preview_up quick_look dir_size tags duplicate copy_contents airdrop reveal symlink diff command undo yank trash delete bookmark help quit quit_no_cd`.
 
 ## Navigation
 
@@ -220,6 +223,7 @@ Operations act on the selection (plus an active visual range), or on the entry u
 | `c` | duplicate next to the original as `name (1).ext` |
 | `C` | copy contents to the clipboard: a text file as text, anything else as files (paste as attachments in Slack, Mail, Messages, or as files in Finder) |
 | `A` | share via AirDrop (opens the system AirDrop panel) |
+| `O` | reveal the entry under the cursor in Finder (selected in its folder); in an empty folder opens the folder |
 | `L` | symlink the copied items into the current folder |
 | `=` | diff exactly 2 selected items (`nvim -d` if that's your editor, otherwise `git diff --no-index` in less) |
 | `T` | edit Finder tags (comma separated; Red, Orange, Yellow, Green, Blue, Purple, Gray get their Finder color) |
@@ -231,7 +235,25 @@ Operations act on the selection (plus an active visual range), or on the entry u
 Extraction uses bsdtar (zip, tar.*, 7z, rar, iso, …) and gzip/bzip2/xz/zstd for single compressed files.
 An archive with one top-level entry is extracted in place, otherwise into a folder named after it.
 
-After the first key of a sequence (`g`, `r`), a panel at the bottom lists what can follow.
+After the first key of a sequence (`g`, `r`, `e`), a panel at the bottom lists what can follow.
+
+## Images & media
+
+Act on the selection or the entry under the cursor. Results are always new files next to the originals
+(`photo (1920).jpg`, `photo (no bg).png`, `clip (0.10-1.30).mp4`); `u` moves them to Trash.
+Files of other types are skipped and counted in the status line.
+
+| key | action |
+|-----|--------|
+| `ec` | convert to jpg, png, heic, avif, tiff, gif, bmp or pdf (picked from a list) |
+| `er` | resize to a longest side (3840 … 800), 50% / 25%, or custom (`1500`, `30%`, `800x600`); never enlarges |
+| `eo` | optimize: jpg/heic re-encoded at high / medium / low quality, png through pngquant; results that aren't smaller are dropped |
+| `ef` | rotate right / left / 180°, flip horizontal / vertical |
+| `eb` | remove the background into a transparent png (on-device Vision framework, macOS 14+) |
+| `et` | trim one video/audio file: `0:10-1:30`, `1:30-` to the end, `-0:45` from the start |
+
+Images go through the built-in `sips` (reads webp but can't write it, so webp results are png).
+Trim uses `ffmpeg` with stream copy: instant and lossless, but a video cut starts at the nearest keyframe before the start time.
 
 ## Preview
 
