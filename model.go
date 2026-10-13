@@ -60,6 +60,7 @@ type model struct {
 	clip      clipboard
 	jobs      []*job
 	servers   []*server
+	dragPanel *exec.Cmd // open drag panel (X), replaced by the next one
 	undoStack []*undoStep
 	prompt    *prompt
 	confirm   *confirm
@@ -188,6 +189,8 @@ func (m *model) update(msg tea.Msg) tea.Cmd {
 		} else {
 			m.status, m.statusIsErr = msg.status, false
 		}
+	case dragDoneMsg:
+		m.dragDone(msg)
 	case serverReadyMsg:
 		return m.serverReady(msg)
 	case serverExitedMsg:
@@ -406,6 +409,10 @@ func (m *model) runAction(action string) tea.Cmd {
 	case "airdrop":
 		if !m.sidebarFocus {
 			return m.airDrop()
+		}
+	case "drag_out":
+		if !m.sidebarFocus {
+			return m.dragOut()
 		}
 	case "reveal":
 		return m.revealInFinder()

@@ -2,7 +2,9 @@ package main
 
 import (
 	"archive/zip"
+	"bytes"
 	"cmp"
+	_ "embed"
 	"errors"
 	"fmt"
 	"io"
@@ -1027,6 +1029,66 @@ func (m *model) revealInFinder() tea.Cmd {
 			return errMsg{err}
 		}
 		return nil
+	}
+}
+
+// ---- drag out ----
+
+//go:embed dragout.js
+var dragOutScript string
+
+type dragDoneMsg struct {
+	panel  *exec.Cmd
+	label  string
+	result string
+	err    error
+}
+
+// dragOut opens a floating panel next to the mouse whose files can be dragged into other apps
+// (AirDrop, mail, chat, upload fields). arhiva stays usable meanwhile; a new panel replaces the old one.
+func (m *model) dragOut() tea.Cmd {
+	paths := m.targets()
+	if len(paths) == 0 {
+		return nil
+	}
+	m.closeDragPanel()
+	cmd := jxaCommand(dragOutScript, paths...)
+	var out bytes.Buffer
+	cmd.Stdout, cmd.Stderr = &out, &out
+	if err := cmd.Start(); err != nil {
+		m.setErr(fmt.Errorf("drag panel: %w", err))
+		return nil
+	}
+	m.dragPanel = cmd
+	m.clearSelection()
+	label := countLabel(paths)
+	m.status, m.statusIsErr = "Drag "+label+" from the panel…", false
+	return func() tea.Msg {
+		waitErr := cmd.Wait()
+		result, err := jxaResult(out.Bytes(), waitErr)
+		return dragDoneMsg{panel: cmd, label: label, result: result, err: err}
+	}
+}
+
+func (m *model) dragDone(msg dragDoneMsg) {
+	if msg.panel != m.dragPanel {
+		return // replaced by a newer panel
+	}
+	m.dragPanel = nil
+	switch {
+	case msg.err != nil:
+		m.setErr(fmt.Errorf("drag panel: %w", msg.err))
+	case msg.result == "dropped":
+		m.status, m.statusIsErr = "Dropped "+msg.label, false
+	default:
+		m.status, m.statusIsErr = "Drag cancelled", false
+	}
+}
+
+func (m *model) closeDragPanel() {
+	if m.dragPanel != nil {
+		m.dragPanel.Process.Kill()
+		m.dragPanel = nil
 	}
 }
 

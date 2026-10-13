@@ -64,6 +64,7 @@ func main() {
 		fail(err)
 	}
 	fm := final.(*model)
+	fm.closeDragPanel()
 	fm.preview.cleanup()
 	if fm.cdOnQuit && *cdFile != "" {
 		if err := os.WriteFile(*cdFile, []byte(fm.active().path), 0o600); err != nil {

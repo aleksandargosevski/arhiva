@@ -90,6 +90,7 @@ var actions = []action{
 	{"duplicate", "Duplicate next to the original", []string{"c"}},
 	{"copy_contents", "Copy contents to clipboard (text; other files as files)", []string{"C"}},
 	{"airdrop", "Share via AirDrop", []string{"A"}},
+	{"drag_out", "Drag to other apps (opens a drag panel)", []string{"X"}},
 	{"reveal", "Reveal in Finder (empty folder: open it)", []string{"O"}},
 	{"symlink", "Symlink copied items here", []string{"L"}},
 	{"diff", "Diff 2 selected items", []string{"="}},

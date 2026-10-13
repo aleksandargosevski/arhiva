@@ -178,7 +178,7 @@ interactive = true
 
 Custom command keys override built-in ones.
 
-Actions: `up down left right top bottom open page_up page_down jump_back jump_forward set_root new_tab close_tab next_tab prev_tab toggle_sidebar focus toggle_hidden filter sort_name sort_modified sort_size sort_ext sort_reverse find grep zoxide goto select visual invert_selection new copy cut paste zip rename rename_append rename_replace convert resize optimize rotate_flip remove_background trim preview_down preview_up quick_look dir_size serve tags duplicate copy_contents airdrop reveal symlink diff command undo yank trash delete bookmark help quit quit_no_cd`.
+Actions: `up down left right top bottom open page_up page_down jump_back jump_forward set_root new_tab close_tab next_tab prev_tab toggle_sidebar focus toggle_hidden filter sort_name sort_modified sort_size sort_ext sort_reverse find grep zoxide goto select visual invert_selection new copy cut paste zip rename rename_append rename_replace convert resize optimize rotate_flip remove_background trim preview_down preview_up quick_look dir_size serve tags duplicate copy_contents airdrop drag_out reveal symlink diff command undo yank trash delete bookmark help quit quit_no_cd`.
 
 ## Navigation
 
@@ -226,6 +226,7 @@ Operations act on the selection (plus an active visual range), or on the entry u
 | `c` | duplicate next to the original as `name (1).ext` |
 | `C` | copy contents to the clipboard: a text file as text, anything else as files (paste as attachments in Slack, Mail, Messages, or as files in Finder) |
 | `A` | share via AirDrop (opens the system AirDrop panel) |
+| `X` | drag out: opens a small panel next to the mouse; drag it into any app (AirDrop, Slack, Mail, upload fields…) to drop all the files; closes after the drop or on `esc` |
 | `O` | reveal the entry under the cursor in Finder (selected in its folder); in an empty folder opens the folder |
 | `L` | symlink the copied items into the current folder |
 | `=` | diff exactly 2 selected items (`nvim -d` if that's your editor, otherwise `git diff --no-index` in less) |

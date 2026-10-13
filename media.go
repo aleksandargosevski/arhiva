@@ -533,7 +533,15 @@ func removeBackground(src string) (string, error) {
 // runJXA runs a JavaScript for Automation script and returns its result, turning osascript's
 // "execution error: Error: <message> (-2700)" into just the message.
 func runJXA(script string, args ...string) (string, error) {
-	out, err := exec.Command("osascript", append([]string{"-l", "JavaScript", "-e", script}, args...)...).CombinedOutput()
+	out, err := jxaCommand(script, args...).CombinedOutput()
+	return jxaResult(out, err)
+}
+
+func jxaCommand(script string, args ...string) *exec.Cmd {
+	return exec.Command("osascript", append([]string{"-l", "JavaScript", "-e", script}, args...)...)
+}
+
+func jxaResult(out []byte, err error) (string, error) {
 	result := strings.TrimSpace(string(out))
 	if err != nil {
 		if i := strings.LastIndex(result, "Error: "); i >= 0 { // thrown errors come out as "Error: Error: msg"
