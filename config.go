@@ -26,6 +26,7 @@ type Config struct {
 	Sort          string             `toml:"sort"` // name, modified, size, ext
 	Git           bool               `toml:"git"`
 	Bookmarks     []string           `toml:"bookmarks"`
+	Server        string             `toml:"server"` // command to serve a folder ($port); default python3, then npx serve
 	Commands      []Command          `toml:"commands"`
 	Keys          map[string]keyList `toml:"keys"`
 }
@@ -107,7 +108,8 @@ var actions = []action{
 	{"preview_down", "Scroll preview down", []string{"J"}},
 	{"preview_up", "Scroll preview up", []string{"K"}},
 	{"quick_look", "Quick Look", []string{"i"}},
-	{"dir_size", "Calculate folder size", []string{"S"}},
+	{"dir_size", "Calculate folder size", []string{"s"}},
+	{"serve", "Serve current folder on localhost and open it", []string{"S"}},
 	{"command", "Run a shell command ($f, $d, \"$@\")", []string{":"}},
 	{"undo", "Undo last rename / move / paste / create", []string{"u"}},
 	{"yank", "Copy path(s)", []string{"Y"}},

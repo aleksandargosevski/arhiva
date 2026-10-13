@@ -6,9 +6,10 @@ A fast Miller-columns file manager for the macOS terminal: Finder-like columns t
 
 - Single binary, macOS (Apple Silicon and Intel)
 - Columns share the width equally; a preview column shows folders, syntax-highlighted text, images (kitty graphics in Ghostty/kitty, also through tmux), archive contents and media metadata
-- Sidebar with bookmarks, each with an automatic `g`+letter jump key
+- Sidebar with bookmarks, each with an automatic `g`+letter jump key, and running servers
 - Fuzzy finder over the current folder or zoxide, content search with ripgrep
 - Selection (space, vim-like visual mode), copy/cut/paste with progress, trash, rename and bulk rename in `$EDITOR`, zip/extract, undo
+- Serve a folder on localhost (python3 or npx serve) with one key
 - Image convert, resize, optimize, rotate/flip and background removal; video/audio trim
 - Filter, sort, tabs, jump history, Finder tags, Quick Look
 - Custom shell commands, picker mode for nvim, config that reloads on save
@@ -145,6 +146,8 @@ image_protocol = "auto"   # auto | kitty | blocks
 syntax_theme   = "monokai" # any chroma style: dracula, nord, github-dark, catppuccin-mocha…
 sort           = "name"   # name | modified | size | ext
 git            = false    # git status marks next to entries
+server         = ""       # command for S, run with `sh -c` in the folder with $port set, e.g. "npx vite --port $port";
+                          # empty: python3 -m http.server, or npx serve without python3
 
 # Keys are assigned automatically: "g" + first free letter of the folder name (Sites -> gs).
 # `m` adds or removes the folder under the cursor, `d` in the focused sidebar removes one;
@@ -175,7 +178,7 @@ interactive = true
 
 Custom command keys override built-in ones.
 
-Actions: `up down left right top bottom open page_up page_down jump_back jump_forward set_root new_tab close_tab next_tab prev_tab toggle_sidebar focus toggle_hidden filter sort_name sort_modified sort_size sort_ext sort_reverse find grep zoxide goto select visual invert_selection new copy cut paste zip rename rename_append rename_replace convert resize optimize rotate_flip remove_background trim preview_down preview_up quick_look dir_size tags duplicate copy_contents airdrop reveal symlink diff command undo yank trash delete bookmark help quit quit_no_cd`.
+Actions: `up down left right top bottom open page_up page_down jump_back jump_forward set_root new_tab close_tab next_tab prev_tab toggle_sidebar focus toggle_hidden filter sort_name sort_modified sort_size sort_ext sort_reverse find grep zoxide goto select visual invert_selection new copy cut paste zip rename rename_append rename_replace convert resize optimize rotate_flip remove_background trim preview_down preview_up quick_look dir_size serve tags duplicate copy_contents airdrop reveal symlink diff command undo yank trash delete bookmark help quit quit_no_cd`.
 
 ## Navigation
 
@@ -190,7 +193,7 @@ Actions: `up down left right top bottom open page_up page_down jump_back jump_fo
 | `t` / `ctrl+w` | new tab / close tab; `gt` / `gT` next / previous, `1`-`9` go to tab |
 | `J` / `K` | scroll the preview |
 | `i` | Quick Look |
-| `S` | calculate folder size (shown in the info line) |
+| `s` | calculate folder size (shown in the info line) |
 
 Tagged entries show Finder-colored dots; all tags are listed in the info line.
 Prompts and confirmations open as a centered dialog.
@@ -217,7 +220,7 @@ Operations act on the selection (plus an active visual range), or on the entry u
 | `y` / `x` | copy / cut |
 | `p` | paste into the current folder; conflicts become `name (1).ext`; progress is shown in the status line |
 | `Z` | zip into the current folder (asks for a name); on archives it extracts instead |
-| `d` | move to Trash (asks y/N); in the focused sidebar removes the bookmark |
+| `d` | move to Trash (asks y/N); in the focused sidebar removes the bookmark or stops the server |
 | `D` | delete permanently, `rm -rf` (asks y/N) |
 | `rr` / `rf` / `rn` | rename: cursor before extension / at end / empty name, extension kept; with several targets, bulk rename in `$EDITOR` (one name per line) |
 | `c` | duplicate next to the original as `name (1).ext` |
@@ -254,6 +257,25 @@ Files of other types are skipped and counted in the status line.
 
 Images go through the built-in `sips` (reads webp but can't write it, so webp results are png).
 Trim uses `ffmpeg` with stream copy: instant and lossless, but a video cut starts at the nearest keyframe before the start time.
+
+## Servers
+
+`S` serves the current folder on the first free port from 8000 (localhost only) and opens it in the browser;
+in a folder that is already served it just opens the browser again. It runs `python3 -m http.server`, or
+`npx serve` without python3, or the `server` command from the config.
+
+Running servers are listed under Bookmarks in the sidebar (`● site :8000`); with the sidebar hidden the
+status line shows `● 2 servers`. In the focused sidebar (`tab`), on a server:
+
+| key | action |
+|-----|--------|
+| `enter` / `l` | open it in the browser |
+| `d` | stop it |
+| `Y` | copy its URL |
+| `O` | reveal its folder in Finder |
+
+A server that exits on its own disappears from the list, with its last output line in the status line.
+Servers never outlive arhiva: quitting asks first and stops them all, as do `ctrl+c` and closing the terminal.
 
 ## Preview
 

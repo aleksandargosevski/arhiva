@@ -1011,7 +1011,10 @@ func (m *model) copyContents() tea.Cmd {
 func (m *model) revealInFinder() tea.Cmd {
 	col := m.active()
 	args, label := []string{col.path}, tildePath(col.path)
+	srv, onServer := m.sidebarServer()
 	switch e, ok := col.selected(); {
+	case onServer:
+		args, label = []string{srv.dir}, tildePath(srv.dir)
 	case m.sidebarFocus:
 		b := m.bookmarks[m.sidebarCursor]
 		args, label = []string{"-R", b.Path}, b.Name

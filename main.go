@@ -4,8 +4,10 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"strings"
+	"syscall"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -54,7 +56,10 @@ func main() {
 		m.setErr(cfgWarn)
 	}
 
-	final, err := tea.NewProgram(m, tea.WithAltScreen()).Run()
+	p := tea.NewProgram(m, tea.WithAltScreen())
+	stopOnHangup(p)
+	final, err := p.Run()
+	stopAllServers()
 	if err != nil {
 		fail(err)
 	}
@@ -65,6 +70,17 @@ func main() {
 			fail(err)
 		}
 	}
+}
+
+// stopOnHangup ends the program when the terminal is closed, so servers are stopped instead of
+// left running (bubbletea itself only handles SIGINT and SIGTERM).
+func stopOnHangup(p *tea.Program) {
+	hup := make(chan os.Signal, 1)
+	signal.Notify(hup, syscall.SIGHUP)
+	go func() {
+		<-hup
+		p.Kill()
+	}()
 }
 
 func fail(err error) {

@@ -59,6 +59,7 @@ type model struct {
 	visual    *visualRange
 	clip      clipboard
 	jobs      []*job
+	servers   []*server
 	undoStack []*undoStep
 	prompt    *prompt
 	confirm   *confirm
@@ -187,6 +188,10 @@ func (m *model) update(msg tea.Msg) tea.Cmd {
 		} else {
 			m.status, m.statusIsErr = msg.status, false
 		}
+	case serverReadyMsg:
+		return m.serverReady(msg)
+	case serverExitedMsg:
+		m.serverExited(msg)
 	case errMsg:
 		m.setErr(msg.err)
 	case grepRunMsg, grepResultsMsg:
@@ -305,6 +310,9 @@ func (m *model) runAction(action string) tea.Cmd {
 			return m.goLeft()
 		}
 	case "right", "open":
+		if s, ok := m.sidebarServer(); ok {
+			return openURL(s.url())
+		}
 		if m.sidebarFocus {
 			m.recordJump()
 			return m.resetTo(m.bookmarks[m.sidebarCursor].Path, "")
@@ -334,7 +342,7 @@ func (m *model) runAction(action string) tea.Cmd {
 		m.showSidebar = !m.showSidebar
 		m.sidebarFocus = m.sidebarFocus && m.showSidebar
 	case "focus":
-		if m.showSidebar && len(m.bookmarks) > 0 {
+		if m.showSidebar && m.sidebarLen() > 0 {
 			m.sidebarFocus = !m.sidebarFocus
 		}
 	case "toggle_hidden":
@@ -435,8 +443,14 @@ func (m *model) runAction(action string) tea.Cmd {
 		if !m.sidebarFocus {
 			m.toggleBookmark()
 		}
+	case "serve":
+		if !m.sidebarFocus {
+			return m.startServer()
+		}
 	case "trash":
-		if m.sidebarFocus {
+		if s, ok := m.sidebarServer(); ok {
+			m.stopServer(s)
+		} else if m.sidebarFocus {
 			m.removeBookmark(m.sidebarCursor)
 		} else {
 			m.startDelete(false)
@@ -452,8 +466,18 @@ func (m *model) runAction(action string) tea.Cmd {
 			m.cdOnQuit = action == "quit"
 			return tea.Quit
 		}
+		var running []string
 		if len(m.jobs) > 0 {
-			m.confirm = &confirm{question: "An operation is still running and would continue unwatched. Quit?", yes: quit}
+			running = append(running, "An operation is still running and would continue unwatched.")
+		}
+		switch n := len(m.servers); {
+		case n == 1:
+			running = append(running, "A server is running and will be stopped.")
+		case n > 1:
+			running = append(running, fmt.Sprintf("%d servers are running and will be stopped.", n))
+		}
+		if len(running) > 0 {
+			m.confirm = &confirm{question: strings.Join(running, " ") + " Quit?", details: m.serverLabels(), yes: quit}
 			return nil
 		}
 		return quit()
@@ -582,7 +606,7 @@ func (v *visualRange) bounds() (lo, hi int) {
 
 func (m *model) move(delta int) {
 	if m.sidebarFocus {
-		m.sidebarCursor = clamp(m.sidebarCursor+delta, 0, len(m.bookmarks)-1)
+		m.sidebarCursor = clamp(m.sidebarCursor+delta, 0, m.sidebarLen()-1)
 		return
 	}
 	c := m.active()
@@ -708,7 +732,9 @@ func (m *model) reloadColumns() {
 // yank copies the target paths (one per line) to the system clipboard.
 func (m *model) yank() {
 	paths := []string{m.active().path}
-	if m.sidebarFocus {
+	if s, ok := m.sidebarServer(); ok {
+		paths = []string{s.url()}
+	} else if m.sidebarFocus {
 		paths = []string{m.bookmarks[m.sidebarCursor].Path}
 	} else if t := m.targets(); len(t) > 0 {
 		paths = t
@@ -750,8 +776,7 @@ func (m *model) removeBookmark(i int) {
 	}
 	name := m.bookmarks[i].Name
 	if m.setBookmarks(slices.Delete(slices.Clone(m.cfg.Bookmarks), i, i+1)) {
-		m.sidebarCursor = clamp(m.sidebarCursor, 0, len(m.bookmarks)-1)
-		m.sidebarFocus = m.sidebarFocus && len(m.bookmarks) > 0
+		m.clampSidebar()
 		m.status, m.statusIsErr = "Removed bookmark "+name, false
 	}
 }
@@ -778,7 +803,7 @@ func (m *model) reloadConfigIfChanged() {
 	cfg, warn := loadConfig()
 	bindings, bookmarks, err := buildBindings(cfg)
 	m.cfg, m.bindings, m.bookmarks = cfg, bindings, bookmarks
-	m.sidebarCursor = clamp(m.sidebarCursor, 0, len(bookmarks)-1)
+	m.clampSidebar()
 	m.preview.theme, m.preview.icons = cfg.SyntaxTheme, cfg.Icons
 	m.preview.refresh()
 	m.git.enabled = cfg.Git
@@ -1075,6 +1100,23 @@ func (m *model) sidebarView(w, h int) string {
 		}
 		lines = append(lines, style.Render(text))
 	}
+	if len(m.servers) > 0 && len(lines)+2 < h {
+		lines = append(lines, strings.Repeat(" ", w), headerStyle.Render(fit(" Servers", w)))
+		for i, s := range m.servers {
+			if len(lines) >= h {
+				break
+			}
+			port := fmt.Sprintf(":%d ", s.port)
+			name := fit(" ● "+s.name(), w-len(port))
+			style := fileStyle
+			text := name + dimStyle.Render(port)
+			if m.sidebarFocus && len(m.bookmarks)+i == m.sidebarCursor {
+				style = style.Background(cursorBg).Foreground(lipgloss.Color("255"))
+				text = name + port
+			}
+			lines = append(lines, style.Render(text))
+		}
+	}
 	for len(lines) < h {
 		lines = append(lines, strings.Repeat(" ", w))
 	}
@@ -1137,7 +1179,28 @@ func (m *model) statusView() string {
 		}
 		left += dimStyle.Render(fmt.Sprintf("  %d %s", n, verb))
 	}
-	return spread(left, m.jobView()+dimStyle.Render("? help "), m.width)
+	return spread(left, m.jobView()+m.serversIndicator()+dimStyle.Render("? help "), m.width)
+}
+
+// serversIndicator keeps running servers visible when the sidebar, which lists them, is hidden.
+func (m *model) serversIndicator() string {
+	if m.showSidebar || len(m.servers) == 0 {
+		return ""
+	}
+	label := "1 server"
+	if n := len(m.servers); n > 1 {
+		label = fmt.Sprintf("%d servers", n)
+	}
+	return accentStyle.Render("● "+label) + "  "
+}
+
+// serverLabels lists the running servers as "site :8000 (~/Sites/site)".
+func (m *model) serverLabels() []string {
+	labels := make([]string, len(m.servers))
+	for i, s := range m.servers {
+		labels[i] = fmt.Sprintf("%s :%d (%s)", s.name(), s.port, tildePath(s.dir))
+	}
+	return labels
 }
 
 // jobView shows the oldest running job: "Copying 3 items ▰▰▰▱▱▱ 45% 1.2 GB/2.6 GB".
