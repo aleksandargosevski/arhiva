@@ -3,6 +3,7 @@ package main
 import (
 	"archive/zip"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -234,7 +235,7 @@ func TestPasteSameNamesAndProgress(t *testing.T) {
 
 	j := &job{}
 	clip := clipboard{paths: []string{filepath.Join(root, "a", "x.txt"), filepath.Join(root, "b", "x.txt")}}
-	msg := pasteAll(clip, filepath.Join(root, "dst"), j)
+	msg := pasteAll(clip, filepath.Join(root, "dst"), keepBoth, j)
 	must(t, msg.err)
 	if !exists(filepath.Join(root, "dst", "x.txt")) || !exists(filepath.Join(root, "dst", "x (1).txt")) {
 		t.Fatal("same-named sources must not overwrite each other")
@@ -244,6 +245,110 @@ func TestPasteSameNamesAndProgress(t *testing.T) {
 	}
 	if len(msg.undo.created) != 2 {
 		t.Fatalf("undo should know both copies: %v", msg.undo.created)
+	}
+}
+
+func TestPasteConflicts(t *testing.T) {
+	var trashed []string
+	realTrash := moveToTrash
+	moveToTrash = func(paths []string) error {
+		trashed = append(trashed, paths...)
+		for _, p := range paths {
+			if err := os.RemoveAll(p); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+	t.Cleanup(func() { moveToTrash = realTrash })
+
+	root := t.TempDir()
+	src, dst := filepath.Join(root, "src"), filepath.Join(root, "dst")
+	write := func(path, content string) {
+		t.Helper()
+		must(t, os.MkdirAll(filepath.Dir(path), 0o755))
+		must(t, os.WriteFile(path, []byte(content), 0o644))
+	}
+	read := func(path string) string { b, _ := os.ReadFile(path); return string(b) }
+	reset := func() {
+		t.Helper()
+		trashed = nil
+		must(t, os.RemoveAll(root))
+		write(filepath.Join(src, "a.txt"), "new a")
+		write(filepath.Join(src, "b.txt"), "new b")
+		write(filepath.Join(src, "c.txt"), "new c")
+		write(filepath.Join(dst, "a.txt"), "old a")
+		write(filepath.Join(dst, "b.txt"), "old b")
+	}
+	pasteWith := func(cut bool, option string) *model {
+		t.Helper()
+		m, err := newModel(Config{}, root)
+		must(t, err)
+		m.clip = clipboard{paths: []string{filepath.Join(src, "a.txt"), filepath.Join(src, "b.txt"), filepath.Join(src, "c.txt")}, cut: cut}
+		m.resetTo(dst, "")
+		runCmdMsg(m, m.paste())
+		if m.choice == nil {
+			t.Fatal("conflicts must open a choice")
+		}
+		if m.choice.options[m.choice.cursor] != pasteReplace || !slices.Equal(m.choice.details, []string{"a.txt", "b.txt"}) {
+			t.Fatalf("choice: cursor on %q, details %v", m.choice.options[m.choice.cursor], m.choice.details)
+		}
+		c := m.choice
+		m.choice = nil
+		runCmdMsg(m, c.pick(option))
+		return m
+	}
+
+	reset()
+	m := pasteWith(false, pasteReplace)
+	if read(filepath.Join(dst, "a.txt")) != "new a" || read(filepath.Join(dst, "b.txt")) != "new b" || exists(filepath.Join(dst, "a (1).txt")) {
+		t.Fatalf("replace: %s", m.status)
+	}
+	if !slices.Equal(trashed, []string{filepath.Join(dst, "a.txt"), filepath.Join(dst, "b.txt")}) {
+		t.Fatalf("replaced items must go to Trash: %v", trashed)
+	}
+	if !strings.Contains(m.status, "replaced 2") || len(m.selected) != 3 {
+		t.Fatalf("replace status %q, selected %v", m.status, m.selected)
+	}
+
+	reset()
+	m = pasteWith(false, pasteKeepBoth)
+	if read(filepath.Join(dst, "a.txt")) != "old a" || read(filepath.Join(dst, "a (1).txt")) != "new a" || len(trashed) != 0 {
+		t.Fatalf("keep both: %s", m.status)
+	}
+
+	reset()
+	m = pasteWith(true, pasteSkip)
+	if read(filepath.Join(dst, "a.txt")) != "old a" || !exists(filepath.Join(src, "a.txt")) || exists(filepath.Join(src, "c.txt")) {
+		t.Fatalf("skip must leave conflicts alone and move the rest: %s", m.status)
+	}
+	if m.status != "Moved 1 item(s) to "+tildePath(dst)+", skipped 2: a.txt, b.txt" {
+		t.Fatalf("skip status %q", m.status)
+	}
+	if !slices.Equal(slices.Collect(maps.Keys(m.selected)), []string{filepath.Join(dst, "c.txt")}) {
+		t.Fatalf("only pasted items should be selected: %v", m.selected)
+	}
+
+	reset()
+	m = pasteWith(true, pasteCancel)
+	if exists(filepath.Join(dst, "c.txt")) || len(m.clip.paths) != 3 || len(m.jobs) != 0 {
+		t.Fatalf("cancel must change nothing and keep the clipboard: %s", m.status)
+	}
+
+	reset()
+	m, err := newModel(Config{}, root)
+	must(t, err)
+	m.clip = clipboard{paths: []string{filepath.Join(dst, "a.txt"), filepath.Join(src, "b.txt")}}
+	m.resetTo(dst, "")
+	runCmdMsg(m, m.paste())
+	if m.choice == nil || !slices.Equal(m.choice.details, []string{"b.txt"}) {
+		t.Fatal("copying an item into its own folder is not a conflict")
+	}
+	c := m.choice
+	m.choice = nil
+	runCmdMsg(m, c.pick(pasteReplace))
+	if read(filepath.Join(dst, "a.txt")) != "old a" || read(filepath.Join(dst, "a (1).txt")) != "old a" || read(filepath.Join(dst, "b.txt")) != "new b" {
+		t.Fatalf("replace must never trash the source itself: %s", m.status)
 	}
 }
 

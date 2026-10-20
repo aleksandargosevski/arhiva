@@ -218,7 +218,7 @@ Operations act on the selection (plus an active visual range), or on the entry u
 |-----|--------|
 | `n` | new file; end with `/` for a folder, nested paths like `a/b.txt` work |
 | `y` / `x` | copy / cut |
-| `p` | paste into the current folder; conflicts become `name (1).ext`; progress is shown in the status line |
+| `p` | paste into the current folder; if names already exist, asks to replace (old ones go to Trash), keep both as `name (1).ext`, skip, or cancel; progress is shown in the status line |
 | `Z` | zip into the current folder (asks for a name); on archives it extracts instead |
 | `d` | move to Trash (asks y/N); in the focused sidebar removes the bookmark or stops the server |
 | `D` | delete permanently, `rm -rf` (asks y/N) |

@@ -42,11 +42,12 @@ type prompt struct {
 
 // opDoneMsg reports a finished background file operation.
 type opDoneMsg struct {
-	status     string
-	err        error
-	selectName string
-	undo       *undoStep
-	job        *job // finished job to remove from the status line
+	status      string
+	err         error
+	selectName  string
+	selectPaths []string // replaces the selection, e.g. to mark what a paste brought in
+	undo        *undoStep
+	job         *job // finished job to remove from the status line
 }
 
 // targets are the paths an operation acts on: selection plus visual range, or the entry under the cursor.
@@ -88,12 +89,71 @@ func (m *model) copyToClipboard(cut bool) {
 	m.status, m.statusIsErr = fmt.Sprintf("%s %s · p to paste", verb, countLabel(paths)), false
 }
 
+// conflictMode decides what pasting does when an item with the same name already exists.
+type conflictMode int
+
+const (
+	keepBoth conflictMode = iota // paste as "name (1).ext"
+	replace                      // move the existing item to the Trash first
+	skip                         // leave the existing item, don't paste
+)
+
+const (
+	pasteReplace  = "Replace (existing go to Trash)"
+	pasteKeepBoth = "Keep both (add suffix)"
+	pasteSkip     = "Skip"
+	pasteCancel   = "Cancel"
+)
+
+// paste pastes the clipboard into the current folder, asking first when names already exist there.
 func (m *model) paste() tea.Cmd {
 	clip, dir := m.clip, m.active().path
 	if len(clip.paths) == 0 {
 		m.setErr(errors.New("nothing to paste, copy (y) or cut (x) first"))
 		return nil
 	}
+	conflicts := findConflicts(clip, dir)
+	if len(conflicts) == 0 {
+		return m.startPaste(clip, dir, keepBoth)
+	}
+	title := fmt.Sprintf("%d items already exist in %s", len(conflicts), tildePath(dir))
+	if len(conflicts) == 1 {
+		title = fmt.Sprintf("%q already exists in %s", conflicts[0], tildePath(dir))
+	}
+	options := []string{pasteReplace, pasteKeepBoth, pasteSkip, pasteCancel}
+	m.openChoice("", title, options, func(picked string) tea.Cmd {
+		switch picked {
+		case pasteReplace:
+			return m.startPaste(clip, dir, replace)
+		case pasteKeepBoth:
+			return m.startPaste(clip, dir, keepBoth)
+		case pasteSkip:
+			return m.startPaste(clip, dir, skip)
+		}
+		m.status, m.statusIsErr = "Paste cancelled", false
+		return nil
+	})
+	m.choice.details = conflicts
+	return nil
+}
+
+// findConflicts returns the names in clip that already exist in dir. Items that are already
+// in dir are left out: moving them is a no-op and copying them always duplicates.
+func findConflicts(clip clipboard, dir string) []string {
+	var names []string
+	for _, src := range clip.paths {
+		name := filepath.Base(src)
+		if filepath.Dir(src) == dir || slices.Contains(names, name) {
+			continue
+		}
+		if exists(filepath.Join(dir, name)) {
+			names = append(names, name)
+		}
+	}
+	return names
+}
+
+func (m *model) startPaste(clip clipboard, dir string, mode conflictMode) tea.Cmd {
 	if clip.cut {
 		m.clip = clipboard{}
 	}
@@ -104,29 +164,34 @@ func (m *model) paste() tea.Cmd {
 	j := &job{label: verb + " " + countLabel(clip.paths)}
 	m.jobs = append(m.jobs, j)
 	return func() tea.Msg {
-		msg := pasteAll(clip, dir, j)
+		msg := pasteAll(clip, dir, mode, j)
 		msg.job = j
 		return msg
 	}
 }
 
-// pasteAll copies or moves the clipboard into dir, renaming to "name (1).ext" on conflict.
+// pasteAll copies or moves the clipboard into dir; mode decides what happens when a name exists.
+// Same-named sources never overwrite each other, the later ones get "name (1).ext".
 // Moves are plain renames; only copies and moves across volumes go through cp, with progress.
-func pasteAll(clip clipboard, dir string, j *job) opDoneMsg {
+// With replace or skip, the pasted items are returned in selectPaths so they stand out.
+func pasteAll(clip clipboard, dir string, mode conflictMode, j *job) opDoneMsg {
 	type pending struct{ src, dest string }
 	var toCopy []pending
 	var errs []error
 	var last string
+	var pasted, skipped []string
+	replaced := 0
 	taken := map[string]bool{}
 	undo := &undoStep{desc: "paste"}
 	fail := func(src string, err error) { errs = append(errs, fmt.Errorf("%s: %w", filepath.Base(src), err)) }
+	sep := string(filepath.Separator)
 
 	for _, src := range clip.paths {
 		if clip.cut && filepath.Dir(src) == dir {
 			last = filepath.Base(src)
 			continue
 		}
-		if dir == src || strings.HasPrefix(dir, src+string(filepath.Separator)) {
+		if dir == src || strings.HasPrefix(dir, src+sep) {
 			fail(src, errors.New("cannot paste a folder into itself"))
 			continue
 		}
@@ -134,13 +199,31 @@ func pasteAll(clip clipboard, dir string, j *job) opDoneMsg {
 			fail(src, err)
 			continue
 		}
-		dest := uniquePath(dir, filepath.Base(src), taken)
+		name := filepath.Base(src)
+		existing := filepath.Join(dir, name)
+		if mode != keepBoth && filepath.Dir(src) != dir && !taken[existing] && exists(existing) {
+			if mode == skip {
+				skipped = append(skipped, name)
+				continue
+			}
+			if strings.HasPrefix(src, existing+sep) {
+				fail(src, errors.New("cannot replace a folder that contains the item being pasted"))
+				continue
+			}
+			if err := moveToTrash([]string{existing}); err != nil {
+				fail(src, fmt.Errorf("could not move the existing item to Trash: %w", err))
+				continue
+			}
+			replaced++
+		}
+		dest := uniquePath(dir, name, taken)
 		taken[dest] = true
 		if clip.cut {
 			err := os.Rename(src, dest)
 			if err == nil {
 				undo.moves = append(undo.moves, move{src, dest})
 				last = filepath.Base(dest)
+				pasted = append(pasted, dest)
 				continue
 			}
 			if !errors.Is(err, syscall.EXDEV) { // EXDEV: other volume, copy + delete below
@@ -160,6 +243,7 @@ func pasteAll(clip clipboard, dir string, j *job) opDoneMsg {
 			continue
 		}
 		last = filepath.Base(p.dest)
+		pasted = append(pasted, p.dest)
 		if !clip.cut {
 			undo.created = append(undo.created, p.dest)
 			continue
@@ -174,12 +258,26 @@ func pasteAll(clip clipboard, dir string, j *job) opDoneMsg {
 	if clip.cut {
 		verb = "Moved"
 	}
-	return opDoneMsg{
-		status:     fmt.Sprintf("%s %d item(s) to %s", verb, len(clip.paths)-len(errs), tildePath(dir)),
-		err:        errors.Join(errs...),
-		selectName: last,
-		undo:       undo,
+	status := fmt.Sprintf("%s %d item(s) to %s", verb, len(clip.paths)-len(errs)-len(skipped), tildePath(dir))
+	if replaced > 0 {
+		status += fmt.Sprintf(", replaced %d (old ones in Trash)", replaced)
 	}
+	if len(skipped) > 0 {
+		status += fmt.Sprintf(", skipped %d: %s", len(skipped), nameList(skipped, 3))
+	}
+	msg := opDoneMsg{status: status, err: errors.Join(errs...), selectName: last, undo: undo}
+	if mode != keepBoth {
+		msg.selectPaths = pasted
+	}
+	return msg
+}
+
+// nameList joins up to limit names, ending with "…" when there are more.
+func nameList(names []string, limit int) string {
+	if len(names) <= limit {
+		return strings.Join(names, ", ")
+	}
+	return strings.Join(names[:limit], ", ") + ", …"
 }
 
 // job is a running background operation whose progress is shown in the status line.
@@ -609,7 +707,8 @@ func (m *model) startDelete(permanent bool) {
 	}}
 }
 
-func moveToTrash(paths []string) error {
+// moveToTrash is a variable so tests can keep the real Trash clean.
+var moveToTrash = func(paths []string) error {
 	if _, err := exec.LookPath("trash"); err != nil {
 		return errors.New("trash command not found (needs macOS 15+); use D to delete permanently")
 	}
@@ -960,7 +1059,7 @@ func (m *model) duplicate() tea.Cmd {
 		done := opDoneMsg{status: "Duplicated " + countLabel(paths), undo: &undoStep{desc: "duplicate"}, job: j}
 		var errs []error
 		for dir, group := range byDir {
-			r := pasteAll(clipboard{paths: group}, dir, j)
+			r := pasteAll(clipboard{paths: group}, dir, keepBoth, j)
 			errs = append(errs, r.err)
 			done.undo.created = append(done.undo.created, r.undo.created...)
 			if dir == activeDir {

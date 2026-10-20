@@ -182,6 +182,12 @@ func (m *model) update(msg tea.Msg) tea.Cmd {
 	case opDoneMsg:
 		m.jobs = slices.DeleteFunc(m.jobs, func(j *job) bool { return j == msg.job })
 		m.afterOp(msg.selectName)
+		if len(msg.selectPaths) > 0 {
+			m.clearSelection()
+			for _, p := range msg.selectPaths {
+				m.selected[p] = true
+			}
+		}
 		m.git.invalidate()
 		m.pushUndo(msg.undo) // partial successes are recorded too
 		if msg.err != nil {

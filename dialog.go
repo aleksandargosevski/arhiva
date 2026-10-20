@@ -24,20 +24,12 @@ func (m *model) dialogView() string {
 		c := m.confirm
 		border = lipgloss.Color("203")
 		lines = append(lines, errStyle.Bold(true).Render(fit(c.question, innerW)), "")
-		for i, d := range c.details {
-			if i == maxDialogDetails {
-				lines = append(lines, dimStyle.Render(fit("  … and more", innerW)))
-				break
-			}
-			lines = append(lines, fileStyle.Render(fit("  "+d, innerW)))
-		}
-		if len(c.details) > 0 {
-			lines = append(lines, "")
-		}
+		lines = append(lines, detailLines(c.details, innerW)...)
 		lines = append(lines, accentStyle.Render("y")+dimStyle.Render(" confirm · any other key cancels"))
 	case m.choice != nil:
 		c := m.choice
 		lines = append(lines, accentStyle.Render(fit(c.title, innerW)), "")
+		lines = append(lines, detailLines(c.details, innerW)...)
 		for i, opt := range c.options {
 			if i == c.cursor {
 				lines = append(lines, accentStyle.Render(fit("▸ "+opt, innerW)))
@@ -57,17 +49,37 @@ func (m *model) dialogView() string {
 	return dialogBorder.BorderForeground(border).Width(innerW + 2).Render(strings.Join(lines, "\n"))
 }
 
+// detailLines lists names under a dialog title, capped at maxDialogDetails, followed by a blank line.
+func detailLines(details []string, innerW int) []string {
+	var lines []string
+	for i, d := range details {
+		if i == maxDialogDetails {
+			lines = append(lines, dimStyle.Render(fit("  … and more", innerW)))
+			break
+		}
+		lines = append(lines, fileStyle.Render(fit("  "+d, innerW)))
+	}
+	if len(details) > 0 {
+		lines = append(lines, "")
+	}
+	return lines
+}
+
 // choice is a pick-one list shown as a dialog; j/k or arrows move, enter picks, esc cancels.
 type choice struct {
-	key     string // remembers the last pick in model.lastPick
+	key     string // remembers the last pick in model.lastPick; "" always starts on the first option
 	title   string
+	details []string // optional, e.g. the names an operation affects
 	options []string
 	cursor  int
 	pick    func(string) tea.Cmd
 }
 
 func (m *model) openChoice(key, title string, options []string, pick func(string) tea.Cmd) {
-	cursor := max(slices.Index(options, m.lastPick[key]), 0)
+	cursor := 0
+	if key != "" {
+		cursor = max(slices.Index(options, m.lastPick[key]), 0)
+	}
 	m.choice = &choice{key: key, title: title, options: options, cursor: cursor, pick: pick}
 }
 
@@ -87,7 +99,9 @@ func (m *model) updateChoice(msg tea.KeyMsg) tea.Cmd {
 	case "enter", "l", "right":
 		m.choice = nil
 		picked := c.options[c.cursor]
-		m.lastPick[c.key] = picked
+		if c.key != "" {
+			m.lastPick[c.key] = picked
+		}
 		return c.pick(picked)
 	}
 	return nil

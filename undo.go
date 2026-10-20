@@ -15,7 +15,7 @@ const maxUndo = 50
 type move struct{ from, to string }
 
 // undoStep describes how to revert one operation. Trash and permanent delete are not undoable
-// (use Finder's "Put Back" for Trash).
+// (use Finder's "Put Back" for Trash). The same goes for items a paste replaced.
 type undoStep struct {
 	desc    string
 	moves   []move   // reverted by moving each `to` back to `from`
