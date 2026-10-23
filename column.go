@@ -32,9 +32,10 @@ type entryMeta struct {
 
 // listOpts controls which entries a column shows and in what order.
 type listOpts struct {
-	showHidden bool
-	sortBy     string // name, modified, size, ext
-	reverse    bool
+	showHidden  bool
+	hideIgnored bool   // drop .git and what git ignores
+	sortBy      string // name, modified, size, ext
+	reverse     bool
 }
 
 type column struct {
@@ -75,6 +76,9 @@ func loadColumn(path string, opts listOpts) (*column, error) {
 			}
 		}
 		entries = append(entries, e)
+	}
+	if opts.hideIgnored {
+		entries = dropGitIgnored(path, entries)
 	}
 	if opts.sortBy == "modified" || opts.sortBy == "size" {
 		loadAllStats(path, entries)

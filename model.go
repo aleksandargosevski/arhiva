@@ -50,6 +50,7 @@ type model struct {
 
 	showSidebar   bool
 	showHidden    bool
+	hideIgnored   bool
 	sortBy        string
 	sortReverse   bool
 	sidebarFocus  bool
@@ -101,6 +102,7 @@ func newModel(cfg Config, startDir string) (*model, error) {
 		cfg:         cfg,
 		showSidebar: cfg.ShowSidebar,
 		showHidden:  cfg.ShowHidden,
+		hideIgnored: cfg.HideIgnored,
 		sortBy:      cmp.Or(cfg.Sort, "name"),
 		preview:     newPreview(cfg),
 		git:         newGitState(cfg.Git),
@@ -356,6 +358,8 @@ func (m *model) runAction(action string) tea.Cmd {
 		}
 	case "toggle_hidden":
 		m.toggleHidden()
+	case "toggle_ignored":
+		m.toggleIgnored()
 	case "filter":
 		if !m.sidebarFocus {
 			return m.startFilter()
@@ -692,7 +696,7 @@ func (m *model) jumpToPath(path string) tea.Cmd {
 }
 
 func (m *model) listOpts() listOpts {
-	return listOpts{showHidden: m.showHidden, sortBy: m.sortBy, reverse: m.sortReverse}
+	return listOpts{showHidden: m.showHidden, hideIgnored: m.hideIgnored, sortBy: m.sortBy, reverse: m.sortReverse}
 }
 
 // startFilter narrows the active column live while typing; enter keeps the filter, esc restores the old one.
@@ -711,8 +715,17 @@ func (m *model) toggleHidden() {
 	m.reloadColumns()
 }
 
+func (m *model) toggleIgnored() {
+	m.hideIgnored = !m.hideIgnored
+	m.reloadColumns()
+	m.status, m.statusIsErr = "Git-ignored files shown", false
+	if m.hideIgnored {
+		m.status = "Git-ignored files hidden"
+	}
+}
+
 // reloadColumns re-reads all columns in place, keeping cursors and filters. If a column's child
-// folder disappeared (deleted, renamed, or now hidden), deeper columns are dropped.
+// folder disappeared (deleted, renamed, now hidden or ignored), deeper columns are dropped.
 func (m *model) reloadColumns() {
 	for i, col := range m.cols {
 		fresh, err := loadColumn(col.path, m.listOpts())
@@ -1170,6 +1183,9 @@ func (m *model) statusView() string {
 		var flags []string
 		if m.showHidden {
 			flags = append(flags, "hidden")
+		}
+		if m.hideIgnored {
+			flags = append(flags, "git-only")
 		}
 		if m.sortBy != "name" || m.sortReverse {
 			flags = append(flags, "sort:"+m.sortBy+map[bool]string{true: "↑"}[m.sortReverse])

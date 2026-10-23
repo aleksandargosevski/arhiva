@@ -20,6 +20,7 @@ type Config struct {
 	DefaultDir    string             `toml:"default_dir"`
 	ShowSidebar   bool               `toml:"show_sidebar"`
 	ShowHidden    bool               `toml:"show_hidden"`
+	HideIgnored   bool               `toml:"hide_ignored"`
 	Icons         bool               `toml:"icons"`
 	ImageProtocol string             `toml:"image_protocol"` // auto, kitty, blocks
 	SyntaxTheme   string             `toml:"syntax_theme"`
@@ -69,6 +70,7 @@ var actions = []action{
 	{"toggle_sidebar", "Toggle sidebar", []string{"b"}},
 	{"focus", "Switch focus sidebar / columns", []string{"tab"}},
 	{"toggle_hidden", "Toggle hidden files", []string{"."}},
+	{"toggle_ignored", "Toggle git-ignored files (and .git)", []string{"I"}},
 	{"filter", "Filter current folder", []string{"/"}},
 	{"sort_name", "Sort by name", []string{",n"}},
 	{"sort_modified", "Sort by modified (newest first)", []string{",m"}},

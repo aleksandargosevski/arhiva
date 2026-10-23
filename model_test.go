@@ -346,6 +346,41 @@ func TestGitStatus(t *testing.T) {
 	}
 }
 
+func TestToggleIgnored(t *testing.T) {
+	root := t.TempDir()
+	if out, err := exec.Command("git", "-C", root, "init", "-q").CombinedOutput(); err != nil {
+		t.Fatalf("git init: %s", out)
+	}
+	must(t, os.MkdirAll(filepath.Join(root, "node_modules", "pkg"), 0o755))
+	must(t, os.MkdirAll(filepath.Join(root, "src"), 0o755))
+	must(t, os.WriteFile(filepath.Join(root, ".gitignore"), []byte("node_modules/\n*.log\n"), 0o644))
+	must(t, os.WriteFile(filepath.Join(root, "debug.log"), nil, 0o644))
+	must(t, os.WriteFile(filepath.Join(root, "main.go"), nil, 0o644))
+
+	m, err := newModel(Config{ShowHidden: true}, root)
+	must(t, err)
+	m.hasZoxide = false
+	if got := names(m.active()); got != ".git,node_modules,src,.gitignore,debug.log,main.go" {
+		t.Fatalf("before toggle: %s", got)
+	}
+
+	m.handleKey("l") // into .git
+	m.handleKey("I")
+	if len(m.cols) != 1 {
+		t.Fatalf(".git column should be dropped, got %d cols", len(m.cols))
+	}
+	if got := names(m.active()); got != "src,.gitignore,main.go" {
+		t.Fatalf("after toggle: %s", got)
+	}
+
+	outside := t.TempDir()
+	must(t, os.WriteFile(filepath.Join(outside, "a.log"), nil, 0o644))
+	m.resetTo(outside, "")
+	if got := names(m.active()); got != "a.log" {
+		t.Fatalf("outside a repo nothing should be hidden: %s", got)
+	}
+}
+
 func TestTabs(t *testing.T) {
 	root := t.TempDir()
 	must(t, os.MkdirAll(filepath.Join(root, "a"), 0o755))

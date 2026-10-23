@@ -110,6 +110,34 @@ func parseGitStatus(root string, out []byte) map[string]byte {
 	return marks
 }
 
+// dropGitIgnored removes .git and every entry git ignores. Tracked files stay even when a pattern
+// matches them, as git does. Outside a repo (or without git) the entries are returned as they are.
+func dropGitIgnored(dir string, entries []entry) []entry {
+	var names bytes.Buffer
+	for _, e := range entries {
+		names.WriteString(e.name)
+		names.WriteByte(0)
+	}
+	cmd := exec.Command("git", "-C", dir, "check-ignore", "--stdin", "-z")
+	cmd.Stdin = &names
+	out, err := cmd.Output()
+	// Exit 1 means nothing is ignored; anything else (128: not a repo) leaves the folder unfiltered.
+	if exitErr, ok := err.(*exec.ExitError); err != nil && (!ok || exitErr.ExitCode() != 1) {
+		return entries
+	}
+	ignored := map[string]bool{".git": true}
+	for _, name := range bytes.Split(out, []byte{0}) {
+		ignored[string(name)] = true
+	}
+	kept := entries[:0:0]
+	for _, e := range entries {
+		if !ignored[e.name] {
+			kept = append(kept, e)
+		}
+	}
+	return kept
+}
+
 func gitMark(xy string) byte {
 	switch {
 	case xy == "??":

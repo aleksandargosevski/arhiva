@@ -141,6 +141,7 @@ Changes apply as soon as the file is saved, no restart needed.
 default_dir    = "."      # "." = folder arhiva was started from; "~" or any path for a fixed start
 show_sidebar   = true
 show_hidden    = false
+hide_ignored   = false    # hide .git and what git ignores (toggle with I)
 icons          = true     # needs a Nerd Font
 image_protocol = "auto"   # auto | kitty | blocks
 syntax_theme   = "monokai" # any chroma style: dracula, nord, github-dark, catppuccin-mocha…
@@ -178,13 +179,14 @@ interactive = true
 
 Custom command keys override built-in ones.
 
-Actions: `up down left right top bottom open page_up page_down jump_back jump_forward set_root new_tab close_tab next_tab prev_tab toggle_sidebar focus toggle_hidden filter sort_name sort_modified sort_size sort_ext sort_reverse find grep zoxide goto select visual invert_selection new copy cut paste zip rename rename_append rename_replace convert resize optimize rotate_flip remove_background trim preview_down preview_up quick_look dir_size serve tags duplicate copy_contents airdrop drag_out reveal symlink diff command undo yank trash delete bookmark help quit quit_no_cd`.
+Actions: `up down left right top bottom open page_up page_down jump_back jump_forward set_root new_tab close_tab next_tab prev_tab toggle_sidebar focus toggle_hidden toggle_ignored filter sort_name sort_modified sort_size sort_ext sort_reverse find grep zoxide goto select visual invert_selection new copy cut paste zip rename rename_append rename_replace convert resize optimize rotate_flip remove_background trim preview_down preview_up quick_look dir_size serve tags duplicate copy_contents airdrop drag_out reveal symlink diff command undo yank trash delete bookmark help quit quit_no_cd`.
 
 ## Navigation
 
 | key | action |
 |-----|--------|
 | `/` | filter the current folder while typing (smart case); enter keeps it, `esc` clears |
+| `I` | hide `.git` and everything git ignores, so only what belongs in the repo is left (untracked files that aren't ignored stay); outside a repo nothing changes |
 | `l` / `enter` | `l` only enters folders; `enter` also opens files |
 | `F` | search file contents with ripgrep, preview of the hit on the right; `enter` jumps to the file |
 | `gp` | go to a typed or pasted path; lists subfolders as you type, `tab` completes |
